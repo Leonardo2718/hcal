@@ -81,9 +81,10 @@ monthWithDay day = [(fromGregorian y m 1)..(fromGregorian y m lastDay)] where
 
 monthAsRows :: Month -> [String]
 monthAsRows m = monthHeader m : showWeek shortWeekNames : (map showWeek . weeksOf $ m) where
-    monthHeader m = padding ++ header ++ padding
+    monthHeader m = lpadding ++ header ++ rpadding
     header = monthNameOf m ++ " " ++ show (yearOf m)
-    padding = replicate (10 - length header `div` 2) ' '
+    lpadding = replicate (10 - length header `div` 2 - length header `mod` 2) ' ' -- need to subtract mod to compansate for extra space when length is odd
+    rpadding = replicate (10 - length header `div` 2) ' '
     showWeek = concat . intersperse " " -- use unwords
 
 
