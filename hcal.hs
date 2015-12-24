@@ -66,7 +66,7 @@ shortWeekNames = ["Mo","Tu","We","Th","Fr","Sa","Su"]
 data Month = Month {yearOf :: Integer, monthNameOf :: String, weeksOf :: [[String]]} deriving (Show)
 
 daysToMonth :: [[Day]] -> Month
-daysToMonth days = Month y (monthNames !! (m-1)) (paddedDays ++ (replicate (6 - length paddedDays) ["                    "])) where
+daysToMonth days = Month y (monthNames !! (m-1)) (paddedDays ++ replicate (6 - length paddedDays) ["                    "]) where
     (y, m, _) = toGregorian . head . head $ days
     paddedDays = padDays (map (map showDay) days)
     padDays ds = [paddedFront] ++ middle ++ [paddedBack] where
@@ -91,7 +91,7 @@ monthAsRows m = monthHeader m : showWeek shortWeekNames : (map showWeek . weeksO
     header = monthNameOf m ++ " " ++ show (yearOf m)
     lpadding = replicate (10 - length header `div` 2 - length header `mod` 2) ' ' -- need to subtract mod to compansate for extra space when length is odd
     rpadding = replicate (10 - length header `div` 2) ' '
-    showWeek = concat . intersperse " " -- use unwords
+    showWeek = unwords
 
 
 
@@ -101,9 +101,9 @@ showDay day = padDay . show $ d where
     padDay ds = if length ds == 1 then ' ':ds else ds
 
 showCal :: Int -> [Day] -> String
-showCal c = concat . showMonths c . map daysToMonth . map (groupBy daysInSameWeek) . groupBy daysInSameMonth where
+showCal c = concat . showMonths c . map (daysToMonth . groupBy daysInSameWeek) . groupBy daysInSameMonth where
     showMonths c = intersperse "\n\n" . map mergeMonths . groupInto c . map monthAsRows
-    mergeMonths = concat . intersperse "\n" . map concat . map (intersperse "   ") . transpose
+    mergeMonths = intercalate "\n" . map (concat . intersperse "   ") . transpose
 
 
 
