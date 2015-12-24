@@ -5,6 +5,7 @@ import Data.Time.Clock
 import Data.List
 import System.Console.GetOpt
 import Data.Maybe ( fromMaybe )
+import Data.Word
 
 
 
@@ -22,7 +23,7 @@ data YearOption = None | ShowCurrent | ShowYear Integer deriving (Show)
 
 data Options = Options
     { optYear           :: YearOption
-    , optColumnCount    :: Int  -- maybe should use Data.Word instead (for unsigned type)
+    , optColumnCount    :: Word
     } deriving Show
 
 defaultOptions = Options
@@ -36,7 +37,7 @@ optionTransforms =
         (OptArg (\ s opts -> opts {optYear = readAsYearOption s}) "YEAR")
         "display calendar for whole year; optionally specify the YEAR displayed"
     , Option ['c'] []
-        (ReqArg (\ s opts -> opts {optColumnCount = read s :: Int}) "COLUMNS")
+        (ReqArg (\ s opts -> opts {optColumnCount = read s :: Word}) "COLUMNS")
         "display calendar with COLUMNS number of columns"
     ]
     where
@@ -100,10 +101,10 @@ showDay day = padDay . show $ d where
     (_,_,d) = toGregorian day
     padDay ds = if length ds == 1 then ' ':ds else ds
 
-showCal :: Int -> [Day] -> String
+showCal :: Word -> [Day] -> String
 showCal c = concat . showMonths c . map (daysToMonth . groupBy daysInSameWeek) . groupBy daysInSameMonth where
     showMonths c = intersperse "\n\n" . map mergeMonths . groupInto c . map monthAsRows
-    mergeMonths = intercalate "\n" . map (concat . intersperse "   ") . transpose
+    mergeMonths = intercalate "\n" . map (intercalate "   ") . transpose
 
 
 
