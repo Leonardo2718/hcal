@@ -18,28 +18,30 @@ groupInto n xs = genericTake n xs: groupInto n (genericDrop n xs)
 
 -- command line option handling --------------------------------------------------------------------
 
+data YearOption = None | ShowCurrent | ShowYear Integer deriving (Show)
+
 data Options = Options
-    { optYear           :: Maybe Integer
+    { optYear           :: YearOption
     , optColumnCount    :: Int  -- maybe should use Data.Word instead (for unsigned type)
     } deriving Show
 
 defaultOptions = Options
-    { optYear           = Nothing
+    { optYear           = None
     , optColumnCount    = 4
     }
 
-optionTransforms :: Day -> [OptDescr (Options -> Options)]
-optionTransforms today = 
+optionTransforms :: [OptDescr (Options -> Options)]
+optionTransforms = 
     [ Option ['y'] ["year"]
-        (OptArg (\ s opts -> opts {optYear = Just (readAsYear s)}) "YEAR")
+        (OptArg (\ s opts -> opts {optYear = readAsYearOption s}) "YEAR")
         "display calendar for whole year; optionally specify the YEAR displayed"
     , Option ['c'] []
         (ReqArg (\ s opts -> opts {optColumnCount = read s :: Int}) "COLUMNS")
         "display calendar with COLUMNS number of columns"
     ]
     where
-        readAsYear Nothing  = y where (y,_,_) = toGregorian today
-        readAsYear (Just s) = read s :: Integer
+        readAsYearOption Nothing  = ShowCurrent
+        readAsYearOption (Just s) = ShowYear (read s :: Integer)
 
 applyOptionTransforms :: [OptDescr (Options -> Options)] -> [String] -> Options -> Options
 applyOptionTransforms transforms argv defaults = 
@@ -78,6 +80,10 @@ monthWithDay :: Day -> [Day]
 monthWithDay day = [(fromGregorian y m 1)..(fromGregorian y m lastDay)] where
     (y, m, d) = toGregorian day
     lastDay = gregorianMonthLength y m
+    
+yearWithDay :: Day -> [Day]
+yearWithDay day = [(fromGregorian y 1 1)..(fromGregorian y 12 31)] where
+    (y, _, _) = toGregorian day
 
 monthAsRows :: Month -> [String]
 monthAsRows m = monthHeader m : showWeek shortWeekNames : (map showWeek . weeksOf $ m) where
@@ -114,19 +120,15 @@ daysInSameMonth day1 day2 = month1 == month2 && year1 == year2 where
 
 
 -- main IO -----------------------------------------------------------------------------------------
-    
-printOutput :: Options -> IO ()
-printOutput options
-    | optYear options == Nothing = getCurrentTime >>= putStrLn . showCal columns . monthWithDay . utctDay
-    | otherwise = (return . showCal columns $ [(fromGregorian year 1 1)..(fromGregorian year 12 31)]) >>= putStrLn where
-        Just year   = optYear options
-        columns     = optColumnCount options
-
-
 
 main :: IO ()
 main = do
     args <- getArgs
     todayUTC <- getCurrentTime
-    let options = applyOptionTransforms (optionTransforms . utctDay $ todayUTC) args defaultOptions
-    printOutput options
+    let options = applyOptionTransforms optionTransforms args defaultOptions
+    todayUTC <- getCurrentTime
+    let days = case optYear options of
+            None        -> monthWithDay . utctDay $ todayUTC
+            ShowCurrent -> yearWithDay . utctDay $ todayUTC
+            ShowYear y  -> [(fromGregorian y 1 1)..(fromGregorian y 12 31)]
+    putStrLn . showCal (optColumnCount options) $ days
