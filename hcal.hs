@@ -112,31 +112,20 @@ daysInSameMonth day1 day2 = month1 == month2 && year1 == year2 where
 
 
 
-parseArgs :: [String] -> IO ()
-
-parseArgs [] = getCurrentTime >>= return . showCal 4 . monthWithDay . utctDay >>= putStrLn
-
-parseArgs ["-y"]  = parseArgs ["-y", "-c", "4"]
-parseArgs ["-y", "-c", c] = getCurrentTime >>= return . showCal columns . yearWithDay . utctDay >>= putStrLn where
-    yearWithDay d = [(fromGregorian y 1 1)..(fromGregorian y 12 31)] where (y, _, _) = toGregorian d
-    columns = read c :: Int
-
-parseArgs ["-y", y] = parseArgs ["-y", y, "-c", "4"]
-parseArgs ["-y", y, "-c", c] = (return . showCal columns $ [(fromGregorian year 1 1)..(fromGregorian year 12 31)]) >>= putStrLn where
-    year    = read y :: Integer
-    columns = read c :: Int
-
-parseArgs xs = do
-    print "Error: "
-    print xs
-
-
-
 -- main IO -----------------------------------------------------------------------------------------
+    
+printOutput :: Options -> IO ()
+printOutput options
+    | optYear options == Nothing = getCurrentTime >>= putStrLn . showCal columns . monthWithDay . utctDay
+    | otherwise = (return . showCal columns $ [(fromGregorian year 1 1)..(fromGregorian year 12 31)]) >>= putStrLn where
+        Just year   = optYear options
+        columns     = optColumnCount options
+
+
 
 main :: IO ()
 main = do
     args <- getArgs
     todayUTC <- getCurrentTime
     let options = applyOptionTransforms (optionTransforms . utctDay $ todayUTC) args defaultOptions
-    print options
+    printOutput options
