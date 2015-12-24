@@ -6,11 +6,17 @@ import Data.List
 import System.Console.GetOpt
 import Data.Maybe ( fromMaybe )
 
+
+
+-- convenience functions ---------------------------------------------------------------------------
+
 groupInto :: Integral i => i -> [a] -> [[a]]
 groupInto _ [] = []
 groupInto n xs = genericTake n xs: (groupInto n $ genericDrop n xs)
 
 
+
+-- command line option handling --------------------------------------------------------------------
 
 data Options = Options
     { optYear           :: Maybe Integer
@@ -35,13 +41,25 @@ optionTransforms today =
         readAsYear Nothing  = y where (y,_,_) = toGregorian today
         readAsYear (Just s) = read s :: Integer
 
+applyOptions :: [OptDescr (Options -> Options)] -> [String] -> Options
+applyOptions transforms argv = 
+    case getOpt Permute transforms argv of
+        (o,[],[] ) -> foldl (flip id) defaultOptions o
+        (_,n,[]) -> error (concat (map (\ a -> "Unknown argument: " ++ a ++ "\n") n) ++ usageInfo header transforms)
+        (_,_,errs) -> error (concat errs ++ usageInfo header transforms)
+        where header = "\nUsage: hcal [OPTION...]"
 
 
+        
+-- constants for the application -------------------------------------------------------------------
+        
 monthNames = ["January","February","March","April","May","June","Juli","August","September","October","November","December"]
 
 shortWeekNames = ["Mo","Tu","We","Th","Fr","Sa","Su"]
 
 
+
+-- main program ------------------------------------------------------------------------------------
 
 data Month = Month {yearOf :: Integer, monthNameOf :: String, weeksOf :: [[String]]} deriving (Show)
 
@@ -114,19 +132,11 @@ parseArgs xs = do
 
 
 
+-- main IO -----------------------------------------------------------------------------------------
+
 main :: IO ()
---main = getArgs >>= parseArgs
---main = putStrLn . show $ (getArgs >>= opts) where 
 main = do
     args <- getArgs
     todayUTC <- getCurrentTime
-    let os = opts (optionTransforms . utctDay $ todayUTC) args
-    putStrLn (show os)
-
-opts transforms argv =
-  case getOpt Permute transforms argv of
-     --(o,n,[]  ) -> return (foldl (flip id) defaultOptions o, n)
-     --(_,_,errs) -> ioError (userError (concat errs ++ usageInfo header optionTransforms))
-     (o,n,[]  ) -> (foldl (flip id) defaultOptions o, n)
-     (_,_,errs) -> error (concat errs ++ usageInfo header transforms)
- where header = "Usage: hcal [OPTION...]"
+    let options = applyOptions (optionTransforms . utctDay $ todayUTC) args
+    putStrLn (show options)
