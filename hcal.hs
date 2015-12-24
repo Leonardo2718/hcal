@@ -3,10 +3,37 @@ import Data.Time.Calendar
 import Data.Time.Calendar.WeekDate
 import Data.Time.Clock
 import Data.List
+import System.Console.GetOpt
+import Data.Maybe ( fromMaybe )
 
 groupInto :: Integral i => i -> [a] -> [[a]]
 groupInto _ [] = []
 groupInto n xs = genericTake n xs: (groupInto n $ genericDrop n xs)
+
+
+
+data Options = Options
+    { optYear           :: Maybe Integer
+    , optColumnCount    :: Int  -- maybe should use Data.Word instead (for unsigned type)
+    } deriving Show
+
+defaultOptions = Options
+    { optYear           = Nothing
+    , optColumnCount    = 4
+    }
+
+optionTransforms :: Day -> [OptDescr (Options -> Options)]
+optionTransforms today = 
+    [ Option ['y'] ["year"]
+        (OptArg (\ s opts -> opts {optYear = Just (readAsYear s)}) "YEAR")
+        "display calendar for whole year; optionally specify the YEAR displayed"
+    , Option ['c'] []
+        (ReqArg (\ s opts -> opts {optColumnCount = (read s) :: Int}) "COLUMNS")
+        "display calendar with COLUMNS number of columns"
+    ]
+    where
+        readAsYear Nothing  = y where (y,_,_) = toGregorian today
+        readAsYear (Just s) = read s :: Integer
 
 
 
@@ -88,4 +115,18 @@ parseArgs xs = do
 
 
 main :: IO ()
-main = getArgs >>= parseArgs
+--main = getArgs >>= parseArgs
+--main = putStrLn . show $ (getArgs >>= opts) where 
+main = do
+    args <- getArgs
+    todayUTC <- getCurrentTime
+    let os = opts (optionTransforms . utctDay $ todayUTC) args
+    putStrLn (show os)
+
+opts transforms argv =
+  case getOpt Permute transforms argv of
+     --(o,n,[]  ) -> return (foldl (flip id) defaultOptions o, n)
+     --(_,_,errs) -> ioError (userError (concat errs ++ usageInfo header optionTransforms))
+     (o,n,[]  ) -> (foldl (flip id) defaultOptions o, n)
+     (_,_,errs) -> error (concat errs ++ usageInfo header transforms)
+ where header = "Usage: hcal [OPTION...]"
