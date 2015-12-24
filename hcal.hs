@@ -22,30 +22,35 @@ groupInto n xs = genericTake n xs: groupInto n (genericDrop n xs)
 data YearOption = None | ShowCurrent | ShowYear Integer deriving (Show)
 
 data Options = Options
-    { optYear           :: YearOption
-    , optColumnCount    :: Word
+    { optYear           :: YearOption   -- which year to show
+    , optColumnCount    :: Word         -- how many columns to show
+    , optSundayWeek     :: Bool         -- if weeks should start on Sunday instead of Monday
     } deriving Show
 
 defaultOptions = Options
     { optYear           = None
     , optColumnCount    = 4
+    , optSundayWeek     = False
     }
 
 optionTransforms :: [OptDescr (Options -> Options)]
-optionTransforms = 
+optionTransforms =
     [ Option ['y'] ["year"]
         (OptArg (\ s opts -> opts {optYear = readAsYearOption s}) "YEAR")
         "display calendar for whole year; optionally specify the YEAR displayed"
     , Option ['c'] []
         (ReqArg (\ s opts -> opts {optColumnCount = read s :: Word}) "COLUMNS")
         "display calendar with COLUMNS number of columns"
+    , Option ['s'] ["sunday"]
+        (NoArg (\ opts -> opts {optSundayWeek = True}))
+        "display Sunday as first day of the week"
     ]
     where
         readAsYearOption Nothing  = ShowCurrent
         readAsYearOption (Just s) = ShowYear (read s :: Integer)
 
 applyOptionTransforms :: [OptDescr (Options -> Options)] -> [String] -> Options -> Options
-applyOptionTransforms transforms argv defaults = 
+applyOptionTransforms transforms argv defaults =
     case getOpt Permute transforms argv of
         (o,[],[] ) -> foldl (flip id) defaults o
         (_,n,[]) -> error (concatMap (\ a -> "Unknown argument: " ++ a ++ "\n") n ++ usageInfo header transforms)
@@ -53,12 +58,16 @@ applyOptionTransforms transforms argv defaults =
         where header = "\nUsage: hcal [OPTION...]"
 
 
-        
+
 -- constants for the application -------------------------------------------------------------------
-        
+
 monthNames = ["January","February","March","April","May","June","Juli","August","September","October","November","December"]
 
-shortWeekNames = ["Mo","Tu","We","Th","Fr","Sa","Su"]
+mDayNames = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+sDayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
+
+shortDayNames :: [String] -> [String]
+shortDayNames = map $ take 2
 
 
 
@@ -81,13 +90,13 @@ monthWithDay :: Day -> [Day]
 monthWithDay day = [(fromGregorian y m 1)..(fromGregorian y m lastDay)] where
     (y, m, d) = toGregorian day
     lastDay = gregorianMonthLength y m
-    
+
 yearWithDay :: Day -> [Day]
 yearWithDay day = [(fromGregorian y 1 1)..(fromGregorian y 12 31)] where
     (y, _, _) = toGregorian day
 
 monthAsRows :: Month -> [String]
-monthAsRows m = monthHeader m : showWeek shortWeekNames : (map showWeek . weeksOf $ m) where
+monthAsRows m = monthHeader m : showWeek (shortDayNames mDayNames) : (map showWeek . weeksOf $ m) where
     monthHeader m = lpadding ++ header ++ rpadding
     header = monthNameOf m ++ " " ++ show (yearOf m)
     lpadding = replicate (10 - length header `div` 2 - length header `mod` 2) ' ' -- need to subtract mod to compansate for extra space when length is odd
