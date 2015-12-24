@@ -12,7 +12,7 @@ import Data.Maybe ( fromMaybe )
 
 groupInto :: Integral i => i -> [a] -> [[a]]
 groupInto _ [] = []
-groupInto n xs = genericTake n xs: (groupInto n $ genericDrop n xs)
+groupInto n xs = genericTake n xs: groupInto n (genericDrop n xs)
 
 
 
@@ -34,18 +34,18 @@ optionTransforms today =
         (OptArg (\ s opts -> opts {optYear = Just (readAsYear s)}) "YEAR")
         "display calendar for whole year; optionally specify the YEAR displayed"
     , Option ['c'] []
-        (ReqArg (\ s opts -> opts {optColumnCount = (read s) :: Int}) "COLUMNS")
+        (ReqArg (\ s opts -> opts {optColumnCount = read s :: Int}) "COLUMNS")
         "display calendar with COLUMNS number of columns"
     ]
     where
         readAsYear Nothing  = y where (y,_,_) = toGregorian today
         readAsYear (Just s) = read s :: Integer
 
-applyOptions :: [OptDescr (Options -> Options)] -> [String] -> Options
-applyOptions transforms argv = 
+applyOptionTransforms :: [OptDescr (Options -> Options)] -> [String] -> Options -> Options
+applyOptionTransforms transforms argv defaults = 
     case getOpt Permute transforms argv of
-        (o,[],[] ) -> foldl (flip id) defaultOptions o
-        (_,n,[]) -> error (concat (map (\ a -> "Unknown argument: " ++ a ++ "\n") n) ++ usageInfo header transforms)
+        (o,[],[] ) -> foldl (flip id) defaults o
+        (_,n,[]) -> error (concatMap (\ a -> "Unknown argument: " ++ a ++ "\n") n ++ usageInfo header transforms)
         (_,_,errs) -> error (concat errs ++ usageInfo header transforms)
         where header = "\nUsage: hcal [OPTION...]"
 
@@ -66,25 +66,25 @@ data Month = Month {yearOf :: Integer, monthNameOf :: String, weeksOf :: [[Strin
 daysToMonth :: [[Day]] -> Month
 daysToMonth days = Month y (monthNames !! (m-1)) (paddedDays ++ (replicate (6 - length paddedDays) ["                    "])) where
     (y, m, _) = toGregorian . head . head $ days
-    paddedDays = (padDays (map (map showDay) days))
+    paddedDays = padDays (map (map showDay) days)
     padDays ds = [paddedFront] ++ middle ++ [paddedBack] where
         middle = init . tail $ ds
         front = head ds
         back = last ds
-        paddedFront = (replicate (7 - length front) "  ") ++ front
-        paddedBack = back ++ (replicate (7 - length back) "  ")
+        paddedFront = replicate (7 - length front) "  " ++ front
+        paddedBack = back ++ replicate (7 - length back) "  "
 
 monthWithDay :: Day -> [Day]
-monthWithDay day = [(fromGregorian y m 1)..(fromGregorian y (m) lastDay)] where
+monthWithDay day = [(fromGregorian y m 1)..(fromGregorian y m lastDay)] where
     (y, m, d) = toGregorian day
     lastDay = gregorianMonthLength y m
 
 monthAsRows :: Month -> [String]
-monthAsRows m = (monthHeader m : showWeek shortWeekNames : (map showWeek . weeksOf $ m)) where
+monthAsRows m = monthHeader m : showWeek shortWeekNames : (map showWeek . weeksOf $ m) where
     monthHeader m = padding ++ header ++ padding
     header = monthNameOf m ++ " " ++ show (yearOf m)
-    padding = (replicate (10 - (length header) `div` 2) ' ')
-    showWeek = concat . intersperse " "
+    padding = replicate (10 - length header `div` 2) ' '
+    showWeek = concat . intersperse " " -- use unwords
 
 
 
@@ -138,5 +138,5 @@ main :: IO ()
 main = do
     args <- getArgs
     todayUTC <- getCurrentTime
-    let options = applyOptions (optionTransforms . utctDay $ todayUTC) args
-    putStrLn (show options)
+    let options = applyOptionTransforms (optionTransforms . utctDay $ todayUTC) args defaultOptions
+    print options
