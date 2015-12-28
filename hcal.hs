@@ -15,6 +15,15 @@ groupInto :: Integral i => i -> [a] -> [[a]]
 groupInto _ [] = []
 groupInto n xs = genericTake n xs: groupInto n (genericDrop n xs)
 
+fst3 :: (a,b,c) -> a
+fst3 (x,_,_) = x
+
+snd3 :: (a,b,c) -> b
+snd3 (_,x,_) = x
+
+trd3 :: (a,b,c) -> c
+trd3 (_,_,x) = x
+
 
 
 -- command line option handling --------------------------------------------------------------------
@@ -61,30 +70,17 @@ applyOptionTransforms transforms argv defaults =
 
 -- constants for the application -------------------------------------------------------------------
 
-monthNames = ["January","February","March","April","May","June","Juli","August","September","October","November","December"]
+monthNames = ["January","February","March","April","May","June","July","August","September","October","November","December"]
 
 mDayNames = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
 sDayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
 
 shortDayNames :: [String] -> [String]
-shortDayNames = map $ take 2
+shortDayNames = map (take 2)
 
 
 
 -- main program ------------------------------------------------------------------------------------
-
-data Month = Month {yearOf :: Integer, monthNameOf :: String, weeksOf :: [[String]]} deriving (Show)
-
-daysToMonth :: [[Day]] -> Month
-daysToMonth days = Month y (monthNames !! (m-1)) (paddedDays ++ replicate (6 - length paddedDays) ["                    "]) where
-    (y, m, _) = toGregorian . head . head $ days
-    paddedDays = padDays (map (map showDay) days)
-    padDays ds = [paddedFront] ++ middle ++ [paddedBack] where
-        middle = init . tail $ ds
-        front = head ds
-        back = last ds
-        paddedFront = replicate (7 - length front) "  " ++ front
-        paddedBack = back ++ replicate (7 - length back) "  "
 
 monthWithDay :: Day -> [Day]
 monthWithDay day = [(fromGregorian y m 1)..(fromGregorian y m lastDay)] where
@@ -95,37 +91,71 @@ yearWithDay :: Day -> [Day]
 yearWithDay day = [(fromGregorian y 1 1)..(fromGregorian y 12 31)] where
     (y, _, _) = toGregorian day
 
-monthAsRows :: Month -> [String]
-monthAsRows m = monthHeader m : showWeek (shortDayNames mDayNames) : (map showWeek . weeksOf $ m) where
-    monthHeader m = lpadding ++ header ++ rpadding
-    header = monthNameOf m ++ " " ++ show (yearOf m)
-    lpadding = replicate (10 - length header `div` 2 - length header `mod` 2) ' ' -- need to subtract mod to compansate for extra space when length is odd
-    rpadding = replicate (10 - length header `div` 2) ' '
-    showWeek = unwords
+yearOf :: Day -> Integer
+yearOf = fst3 . toGregorian
 
+monthOf :: Day -> Int
+monthOf = snd3 . toGregorian
 
+weekOf :: Day -> Int
+weekOf = snd3 . toWeekDate
 
-showDay :: Day -> String
-showDay day = padDay . show $ d where
-    (_,_,d) = toGregorian day
-    padDay ds = if length ds == 1 then ' ':ds else ds
-
-showCal :: Word -> [Day] -> String
-showCal c = concat . showMonths c . map (daysToMonth . groupBy daysInSameWeek) . groupBy daysInSameMonth where
-    showMonths c = intersperse "\n\n" . map mergeMonths . groupInto c . map monthAsRows
-    mergeMonths = intercalate "\n" . map (intercalate "   ") . transpose
-
-
-
-daysInSameWeek :: Day -> Day -> Bool
-daysInSameWeek day1 day2 = week1 == week2 && year1 == year2 where
-    (year1, week1, _) = toWeekDate day1
-    (year2, week2, _) = toWeekDate day2
+dateOf :: Day -> Int
+dateOf = trd3 . toGregorian
 
 daysInSameMonth :: Day -> Day -> Bool
-daysInSameMonth day1 day2 = month1 == month2 && year1 == year2 where
-    (year1, month1, _) = toGregorian day1
-    (year2, month2, _) = toGregorian day2
+daysInSameMonth day1 day2 = monthOf day1 == monthOf day2 && yearOf day1 == yearOf day2
+
+daysInSameWeek :: Bool -> Day -> Day -> Bool
+daysInSameWeek False day1 day2  = weekOf day1 == weekOf day2 && yearOf day1 == yearOf day2
+daysInSameWeek True day1 day2
+    | isSunday day1 && not (isSunday day2)  = weekOf (1 `addDays` day1 ) == weekOf day2 && areInSameYear
+    | not (isSunday day1) && isSunday day2  = weekOf day1 == weekOf (1 `addDays` day2) && areInSameYear
+    | otherwise                             = weekOf day1 == weekOf day2 && areInSameYear
+    where
+        isSunday day = trd3 (toWeekDate day) == 7
+        areInSameYear = yearOf day1 == yearOf day2
+
+weeksInSameMonth :: (Integer, Int, [String]) -> (Integer, Int, [String]) -> Bool
+weeksInSameMonth w1 w2 = snd3 w1 == snd3 w2
+
+
+showCal :: Word -> Bool -> [Day] -> String
+showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMonths . daysAsMonthWeeks where
+    showAsCalendar      = intercalate "\n\n" . map (intercalate "\n" . padYear) where
+        padYear (y,m,ms)    = header:ms where
+            header              = leftPadding ++ year ++ rightPadding where
+                year                = show y
+                leftPadding         = replicate (paddingLength - length year `mod` 2) ' '
+                rightPadding        = replicate paddingLength ' '
+                paddingLength       = (min (read (show columns) :: Int) (length m) * 22 - 2 - length year) `div` 2  -- cast `columns` to Int
+
+    monthsAsYears       = map (showMonths . padMonths . pullYearInfo) . groupByYears where
+        showMonths (y,m,ms) = (y, m, map (intercalate "\n" . map (intercalate "  ") . transpose) . groupInto columns $ ms)
+        padMonths (y,m,ms)  = (y, m, map padMonth (zip m ms)) where
+            padMonth (n,month)  = header ++ dayNames ++ month ++ emptyRows where
+                emptyRows           = replicate (6 - length month) (replicate 20 ' ')
+                dayNames            = [unwords (shortDayNames (if firstDaySunday then sDayNames else mDayNames))]
+                header              = [leftPadding ++ h ++ rightPadding] where
+                    h                   = " " ++ (monthNames !! (n - 1))
+                    leftPadding         = replicate (10 - length h `div` 2 - length h `mod` 2) ' '
+                    rightPadding        = replicate (10 - length h `div` 2) ' '
+        pullYearInfo months = (fst3 (months!!0), map snd3 months, map trd3 months)
+        groupByYears        = groupBy (\ (y1,_,_) (y2,_,_) -> y1 == y2)
+
+    monthWeeksAsMonths  = map (showWeeks . padWeeks . pullMonthInfo) . groupByMonth where
+        showWeeks (y,m,ws)  = (y, m, map unwords ws)
+        padWeeks (y,m,ws)   = (y, m, padFirstWeek . padLastWeek $ ws) where
+            padFirstWeek (w:wss)    = (replicate (7 - length w) "  " ++  w):wss
+            padLastWeek wss         = init wss ++ [(w ++ replicate (7 - length w) "  ")] where w = last wss
+        pullMonthInfo weeks = (fst3 (weeks!!0), snd3 (weeks!!0), map trd3 weeks)
+        groupByMonth        = groupBy weeksInSameMonth
+
+    daysAsMonthWeeks    = map (padDays . showDays . pullWeekInfo) . groupByWeek where
+        padDays (y,m,ds)    = (y, m, map (\d -> if length d == 1 then ' ':d else d) ds)
+        showDays (y,m,ds)   = (y, m, map show ds)
+        pullWeekInfo days   = (yearOf (days!!0), monthOf (days!!0), map dateOf days)
+        groupByWeek         = groupBy (\ d1 d2 -> daysInSameWeek firstDaySunday d1 d2 && daysInSameMonth d1 d2)
 
 
 
@@ -141,4 +171,4 @@ main = do
             None        -> monthWithDay . utctDay $ todayUTC
             ShowCurrent -> yearWithDay . utctDay $ todayUTC
             ShowYear y  -> [(fromGregorian y 1 1)..(fromGregorian y 12 31)]
-    putStrLn . showCal (optColumnCount options) $ days
+    putStrLn . showCal (optColumnCount options) (optSundayWeek options) $ days
