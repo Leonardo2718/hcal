@@ -160,9 +160,11 @@ showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMo
 
     monthWeeksAsMonths  = map (showWeeks . padWeeks . pullMonthInfo) . groupByMonth where
         showWeeks (y,m,ws)  = (y, m, map unwords ws)
-        padWeeks (y,m,ws)   = (y, m, padFirstWeek . padLastWeek $ ws) where
-            padFirstWeek (w:wss)    = (replicate (7 - length w) "  " ++  w):wss
-            padLastWeek wss         = init wss ++ [(w ++ replicate (7 - length w) "  ")] where w = last wss
+        padWeeks (y,m,ws)   = (y, m, map padWeek ws) where
+            padWeek ds      = replicate (dayNumber (head ds) - 1) "  " ++ ds ++ replicate (7 - dayNumber (last ds)) "  "
+            dayNumber d     = case firstDaySunday of
+                False   -> trd3 . toWeekDate . fromGregorian y m $ (read d :: Int)
+                True    -> (trd3 . toWeekDate . fromGregorian y m $ (read d :: Int)) `rem` 7 + 1
         pullMonthInfo weeks = (fst3 (weeks!!0), snd3 (weeks!!0), map trd3 weeks)
         groupByMonth        = groupBy weeksInSameMonth
 
