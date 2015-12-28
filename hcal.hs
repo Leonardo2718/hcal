@@ -137,8 +137,8 @@ weeksInSameMonth w1 w2 = snd3 w1 == snd3 w2
 
 showCal :: Word -> Bool -> [Day] -> String
 showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMonths . daysAsMonthWeeks where
-    showAsCalendar      = intercalate "\n\n" . map (intercalate "\n" . padYear) where
-        padYear (y,m,ms)    = header:ms where
+    showAsCalendar      = intercalate "\n\n" . map (intercalate "\n" . addHeader) where
+        addHeader (y,m,ms)  = header:ms where
             header              = leftPadding ++ year ++ rightPadding where
                 year                = show y
                 leftPadding         = replicate (paddingLength - length year `mod` 2) ' '
