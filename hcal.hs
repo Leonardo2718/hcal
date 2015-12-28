@@ -3,6 +3,7 @@ import Data.Time.Calendar
 import Data.Time.Calendar.WeekDate
 import Data.Time.Clock
 import Data.List
+import Data.List.Split
 import System.Console.GetOpt
 import Data.Maybe ( fromMaybe )
 import Data.Word
@@ -34,12 +35,14 @@ data Options = Options
     { optYear           :: YearOption   -- which year to show
     , optColumnCount    :: Word         -- how many columns to show
     , optSundayWeek     :: Bool         -- if weeks should start on Sunday instead of Monday
+    , optDayRange       :: (Maybe Day, Maybe Day)   -- range of days to display
     } deriving Show
 
 defaultOptions = Options
     { optYear           = None
     , optColumnCount    = 4
     , optSundayWeek     = False
+    , optDayRange       = (Nothing, Nothing)
     }
 
 optionTransforms :: [OptDescr (Options -> Options)]
@@ -53,10 +56,22 @@ optionTransforms =
     , Option ['s'] ["sunday"]
         (NoArg (\ opts -> opts {optSundayWeek = True}))
         "display Sunday as first day of the week"
+    , Option ['r'] ["range"]
+        (ReqArg (\ s opts -> opts {optDayRange = parseDayRange s}) "DAY_RANGE")
+        "display calendar with days in the range specified"
     ]
     where
         readAsYearOption Nothing  = ShowCurrent
         readAsYearOption (Just s) = ShowYear (read s :: Integer)
+        parseDayRange = toRange . toTuple . splitOn ":" where
+            toRange (s1,s2) = (readAsMaybeDay s1, readAsMaybeDay s2)
+            toTuple xs = if length xs == 2 then (head xs, last xs) else error "Invalid Range."
+            readAsMaybeDay s = if length s == 0 then Nothing else Just (readAsDay s)
+            readAsDay s = fromGregorian year month date where
+                year = read (ds!!0) :: Integer
+                month = read (ds!!1) :: Int
+                date = read (ds!!2) :: Int
+                ds = splitOn "-" s
 
 applyOptionTransforms :: [OptDescr (Options -> Options)] -> [String] -> Options -> Options
 applyOptionTransforms transforms argv defaults =
@@ -167,8 +182,13 @@ main = do
     todayUTC <- getCurrentTime
     let options = applyOptionTransforms optionTransforms args defaultOptions
     todayUTC <- getCurrentTime
-    let days = case optYear options of
-            None        -> monthWithDay . utctDay $ todayUTC
-            ShowCurrent -> yearWithDay . utctDay $ todayUTC
-            ShowYear y  -> [(fromGregorian y 1 1)..(fromGregorian y 12 31)]
+    let today = utctDay todayUTC
+    let days = case optDayRange options of
+            (Nothing, Nothing)  -> case optYear options of
+                                    None        -> monthWithDay today
+                                    ShowCurrent -> yearWithDay today
+                                    ShowYear y  -> [(fromGregorian y 1 1)..(fromGregorian y 12 31)]
+            (Nothing, Just d)   -> [today..d]
+            (Just d, Nothing)   -> [d..today]
+            (Just d1, Just d2)  -> [d1..d2]
     putStrLn . showCal (optColumnCount options) (optSundayWeek options) $ days
