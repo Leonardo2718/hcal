@@ -153,13 +153,15 @@ showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMo
         pullYearInfo months = (fst3 (months!!0), map snd3 months, map trd3 months)
         groupByYears        = groupBy (\ (y1,_,_) (y2,_,_) -> y1 == y2)
 
-    monthWeeksAsMonths  = map (padMonth . showWeeks . pullMonthInfo) . groupByMonth where
-        padMonth  (y,m,ws)  = (y, m, topPadding ++ ws ++ bottomPadding) where
-            topPadding          = [leftPadding ++ h ++ rightPadding] ++ [dayNames] where
-                dayNames            = unwords (shortDayNames (if firstDaySunday then sDayNames else mDayNames))
-                h                   = monthNames !! (m - 1)
-                leftPadding         = replicate (10 - length h `div` 2 - length h `mod` 2) ' '
-                rightPadding        = replicate (10 - length h `div` 2) ' '
+    monthWeeksAsMonths  = map (addHeader . padMonth . showWeeks . pullMonthInfo) . groupByMonth where
+        addHeader (y,m,ws)  = (y, m, header ++ ws) where
+            header          = [leftPadding ++ h ++ rightPadding] ++ [dayNames]
+            dayNames            = unwords (shortDayNames (if firstDaySunday then sDayNames else mDayNames))
+            h                   = monthNames !! (m - 1)
+            leftPadding         = replicate (10 - length h `div` 2 - length h `mod` 2) ' '
+            rightPadding        = replicate (10 - length h `div` 2) ' '
+        padMonth (y,m,ws)   = (y, m, topPadding ++ ws ++ bottomPadding) where
+            topPadding          = []
             bottomPadding       = replicate (6 - length ws) (replicate 20 ' ')
         showWeeks (y,m,ws)  = (y, m, map unwords ws)
         pullMonthInfo weeks = (fst3 (weeks!!0), snd3 (weeks!!0), map trd3 weeks)
