@@ -1,6 +1,7 @@
 import System.Environment (getArgs)
 import Data.Time.Calendar
 import Data.Time.Calendar.WeekDate
+import Data.Time.Calendar.OrdinalDate
 import Data.Time.Clock
 import Data.List
 import Data.List.Split
@@ -124,9 +125,6 @@ yearOf = fst3 . toGregorian
 monthOf :: Day -> Int
 monthOf = snd3 . toGregorian
 
-weekOf :: Day -> Int
-weekOf = snd3 . toWeekDate
-
 dateOf :: Day -> Int
 dateOf = trd3 . toGregorian
 
@@ -134,15 +132,10 @@ daysInSameMonth :: Day -> Day -> Bool
 daysInSameMonth day1 day2 = monthOf day1 == monthOf day2 && yearOf day1 == yearOf day2
 
 daysInSameWeek :: Bool -> Day -> Day -> Bool
-daysInSameWeek False day1 day2  = weekOf day1 == weekOf day2 && yearOf day1 == yearOf day2
-daysInSameWeek True day1 day2
-    | isSunday day1 && not (isSunday day2)  = weekOf (1 `addDays` day1 ) == weekOf day2 && areInSameYear
-    | not (isSunday day1) && isSunday day2  = weekOf day1 == weekOf (1 `addDays` day2) && areInSameYear
-    | otherwise                             = weekOf day1 == weekOf day2 && areInSameYear
-    where
-        isSunday day = trd3 (toWeekDate day) == 7
-        areInSameYear = yearOf day1 == yearOf day2
-
+daysInSameWeek firstDaySunday day1 day2 = weekOf day1 == weekOf day2 && yearOf day1 == yearOf day2 where
+    weekOf = case firstDaySunday of
+        False -> fst . mondayStartWeek
+        True -> fst . sundayStartWeek
 
 showCal :: Word -> Bool -> [Day] -> String
 showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMonths . daysAsMonthWeeks where
@@ -172,8 +165,8 @@ showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMo
         padMonth (y,m,ws,ss)= (y, m, ws, topPadding ++ ss ++ bottomPadding) where
             topPadding          = replicate (head ws - firstMonthWeek) (replicate 20 ' ')
             bottomPadding       = replicate (5 - (lastMonthWeek - firstMonthWeek) + (lastMonthWeek - last ws)) (replicate 20 ' ')
-            firstMonthWeek      = snd3 . toWeekDate . fromGregorian y m $ 1
-            lastMonthWeek       = snd3 . toWeekDate . fromGregorian y m . gregorianMonthLength y $ m
+            firstMonthWeek      = fst . weekOf . fromGregorian y m $ 1
+            lastMonthWeek       = fst . weekOf . fromGregorian y m . gregorianMonthLength y $ m
         showWeeks (y,m,ws,ss)= (y, m, ws, map unwords ss)
         pullMonthInfo weeks = (fst4 (head weeks), snd4 (head weeks), map trd4 weeks, map frt4 weeks)
         groupByMonth        = groupBy (\ w1 w2 -> snd4 w1 == snd4 w2)
@@ -183,12 +176,14 @@ showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMo
             leftPadding         = replicate (dayNumber (head ds) - 1) "  "
             rightPadding        = replicate (7 - dayNumber (last ds)) "  "
             dayNumber d         = case firstDaySunday of
-                                    False   -> trd3 . toWeekDate . fromGregorian y m $ (read d :: Int)
-                                    True    -> (trd3 . toWeekDate . fromGregorian y m $ (read d :: Int)) `rem` 7 + 1
+                                    False   -> snd . mondayStartWeek . fromGregorian y m $ (read d :: Int)
+                                    True    -> (snd . sundayStartWeek . fromGregorian y m $ (read d :: Int)) + 1
         padDays (y,m,w,ds)  = (y, m, w, map (\d -> if length d == 1 then ' ':d else d) ds)
         showDays (y,m,w,ds) = (y, m, w, map show ds)
-        pullWeekInfo days   = (yearOf (head days), monthOf (head days), weekOf (head days), map dateOf days)
+        pullWeekInfo days   = (yearOf (head days), monthOf (head days), fst (weekOf (head days)), map dateOf days)
         groupByWeek         = groupBy (\ d1 d2 -> daysInSameWeek firstDaySunday d1 d2 && daysInSameMonth d1 d2)
+
+    weekOf             = if firstDaySunday then sundayStartWeek else mondayStartWeek
 
 
 
