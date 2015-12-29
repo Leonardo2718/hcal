@@ -145,30 +145,33 @@ showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMo
                 rightPadding        = replicate paddingLength ' '
                 paddingLength       = (min (read (show columns) :: Int) (length m) * 22 - 2 - length year) `div` 2  -- cast `columns` to Int
 
-    monthsAsYears       = map (showMonths . padMonths . pullYearInfo) . groupByYears where
+    monthsAsYears       = map (showMonths . pullYearInfo) . groupByYears where
+        padYear (y,m,ms)    = (y,m, leftPadding ++ ms ++ rightPadding) where
+            leftPadding         = replicate (head m - 1)  (replicate 8 . replicate 20 $ ' ')
+            rightPadding        = replicate (12 - last m) (replicate 8 . replicate 20 $ ' ')
         showMonths (y,m,ms) = (y, m, map (intercalate "\n" . map (intercalate "  ") . transpose) . groupInto columns $ ms)
-        padMonths (y,m,ms)  = (y, m, map padMonth (zip m ms)) where
-            padMonth (n,month)  = header ++ dayNames ++ month ++ emptyRows where
-                emptyRows           = replicate (6 - length month) (replicate 20 ' ')
-                dayNames            = [unwords (shortDayNames (if firstDaySunday then sDayNames else mDayNames))]
-                header              = [leftPadding ++ h ++ rightPadding] where
-                    h                   = " " ++ (monthNames !! (n - 1))
-                    leftPadding         = replicate (10 - length h `div` 2 - length h `mod` 2) ' '
-                    rightPadding        = replicate (10 - length h `div` 2) ' '
         pullYearInfo months = (fst3 (months!!0), map snd3 months, map trd3 months)
         groupByYears        = groupBy (\ (y1,_,_) (y2,_,_) -> y1 == y2)
 
-    monthWeeksAsMonths  = map (showWeeks . padWeeks . pullMonthInfo) . groupByMonth where
+    monthWeeksAsMonths  = map (padMonth . showWeeks . pullMonthInfo) . groupByMonth where
+        padMonth  (y,m,ws)  = (y, m, topPadding ++ ws ++ bottomPadding) where
+            topPadding          = [leftPadding ++ h ++ rightPadding] ++ [dayNames] where
+                dayNames            = unwords (shortDayNames (if firstDaySunday then sDayNames else mDayNames))
+                h                   = monthNames !! (m - 1)
+                leftPadding         = replicate (10 - length h `div` 2 - length h `mod` 2) ' '
+                rightPadding        = replicate (10 - length h `div` 2) ' '
+            bottomPadding       = replicate (6 - length ws) (replicate 20 ' ')
         showWeeks (y,m,ws)  = (y, m, map unwords ws)
-        padWeeks (y,m,ws)   = (y, m, map padWeek ws) where
-            padWeek ds      = replicate (dayNumber (head ds) - 1) "  " ++ ds ++ replicate (7 - dayNumber (last ds)) "  "
-            dayNumber d     = case firstDaySunday of
-                False   -> trd3 . toWeekDate . fromGregorian y m $ (read d :: Int)
-                True    -> (trd3 . toWeekDate . fromGregorian y m $ (read d :: Int)) `rem` 7 + 1
         pullMonthInfo weeks = (fst3 (weeks!!0), snd3 (weeks!!0), map trd3 weeks)
         groupByMonth        = groupBy weeksInSameMonth
 
-    daysAsMonthWeeks    = map (padDays . showDays . pullWeekInfo) . groupByWeek where
+    daysAsMonthWeeks    = map (padWeek . padDays . showDays . pullWeekInfo) . groupByWeek where
+        padWeek (y,m,ds)    = (y, m, leftPadding ++ ds ++ rightPadding) where
+            leftPadding         = replicate (dayNumber (head ds) - 1) "  "
+            rightPadding        = replicate (7 - dayNumber (last ds)) "  "
+            dayNumber d         = case firstDaySunday of
+                                    False   -> trd3 . toWeekDate . fromGregorian y m $ (read d :: Int)
+                                    True    -> (trd3 . toWeekDate . fromGregorian y m $ (read d :: Int)) `rem` 7 + 1
         padDays (y,m,ds)    = (y, m, map (\d -> if length d == 1 then ' ':d else d) ds)
         showDays (y,m,ds)   = (y, m, map show ds)
         pullWeekInfo days   = (yearOf (days!!0), monthOf (days!!0), map dateOf days)
