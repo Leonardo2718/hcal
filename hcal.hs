@@ -46,17 +46,17 @@ data YearOption = None | ShowCurrent | ShowYear Integer deriving (Show)
 
 data Options = Options
     { optYear           :: YearOption               -- which year to show
+    , optDayRange       :: (Maybe Day, Maybe Day)   -- range of days to display
     , optColumnCount    :: Word                     -- how many columns to show
     , optSundayWeek     :: Bool                     -- if weeks should start on Sunday instead of Monday
-    , optDayRange       :: (Maybe Day, Maybe Day)   -- range of days to display
     , optHelp           :: Bool                     -- display usage information
     } deriving Show
 
 defaultOptions = Options
     { optYear           = None
+    , optDayRange       = (Nothing, Nothing)
     , optColumnCount    = 4
     , optSundayWeek     = False
-    , optDayRange       = (Nothing, Nothing)
     , optHelp           = False
     }
 
@@ -65,15 +65,15 @@ optionTransforms =
     [ Option ['y'] ["year"]
         (OptArg (\ s opts -> opts {optYear = readAsYearOption s}) "YEAR")
         "display calendar for whole year; optionally specify the YEAR displayed"
+    , Option ['r'] ["range"]
+        (ReqArg (\ s opts -> opts {optDayRange = parseDayRange s}) "DAY_RANGE")
+        "display calendar with days in the range specified"
     , Option ['c'] []
         (ReqArg (\ s opts -> opts {optColumnCount = read s :: Word}) "COLUMNS")
         "display calendar with COLUMNS number of columns; COLUMNS must be a positive integer"
     , Option ['s'] ["sunday"]
         (NoArg (\ opts -> opts {optSundayWeek = True}))
         "display Sunday as first day of the week"
-    , Option ['r'] ["range"]
-        (ReqArg (\ s opts -> opts {optDayRange = parseDayRange s}) "DAY_RANGE")
-        "display calendar with days in the range specified"
     , Option ['h'] ["help"]
         (NoArg (\ opts -> opts {optHelp = True}))
         "display this help message"
@@ -199,6 +199,20 @@ showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMo
 
 -- main IO -----------------------------------------------------------------------------------------
 
+genDays :: Options -> Day -> [Day]
+genDays options today   = case optDayRange options of
+    (Nothing, Nothing)  -> tryCurrentYear
+    (Nothing, Just d)   -> [today..d]
+    (Just d, Nothing)   -> [d..today]
+    (Just d1, Just d2)  -> [d1..d2]
+    where
+        tryCurrentYear  = case optYear options of
+                            None        -> currentMonth
+                            ShowCurrent -> yearWithDay today
+                            ShowYear y  -> [(fromGregorian y 1 1)..(fromGregorian y 12 31)]
+        currentMonth    = monthWithDay today
+
+
 main :: IO ()
 main = do
     args <- getArgs
@@ -206,12 +220,5 @@ main = do
     let options = applyOptionTransforms optionTransforms args defaultOptions
     todayUTC <- getCurrentTime
     let today = utctDay todayUTC
-    let days = case optDayRange options of
-            (Nothing, Nothing)  -> case optYear options of
-                                    None        -> monthWithDay today
-                                    ShowCurrent -> yearWithDay today
-                                    ShowYear y  -> [(fromGregorian y 1 1)..(fromGregorian y 12 31)]
-            (Nothing, Just d)   -> [today..d]
-            (Just d, Nothing)   -> [d..today]
-            (Just d1, Just d2)  -> [d1..d2]
+    let days = genDays options today
     putStrLn (if optHelp options then helpMessage else showCal (optColumnCount options) (optSundayWeek options) days)
