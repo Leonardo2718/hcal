@@ -143,9 +143,6 @@ daysInSameWeek True day1 day2
         isSunday day = trd3 (toWeekDate day) == 7
         areInSameYear = yearOf day1 == yearOf day2
 
---weeksInSameMonth :: (Integer, Int, [String]) -> (Integer, Int, [String]) -> Bool
---weeksInSameMonth w1 w2 = snd3 w1 == snd3 w2
-
 
 showCal :: Word -> Bool -> [Day] -> String
 showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMonths . daysAsMonthWeeks where
@@ -163,7 +160,7 @@ showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMo
             rightPadding        = replicate (12 - last ms) (replicate 8 . replicate 20 $ ' ')
         showMonths (y,ms,ws,ss)= (y, ms, ws, map (intercalate "\n" . map (intercalate "  ") . transpose) . groupInto columns $ ss)
         pullYearInfo months = (fst4 (head months), map snd4 months, map trd4 months, map frt4 months)
-        groupByYears        = groupBy (\ (y1,_,_,_) (y2,_,_,_) -> y1 == y2)
+        groupByYears        = groupBy (\ m1 m2 -> fst4 m1 == fst4 m2)
 
     monthWeeksAsMonths  = map (addHeader . padMonth . showWeeks . pullMonthInfo) . groupByMonth where
         addHeader (y,m,ws,ss)= (y, m, ws, header ++ ss) where
@@ -174,12 +171,12 @@ showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMo
             rightPadding        = replicate (10 - length h `div` 2) ' '
         padMonth (y,m,ws,ss)= (y, m, ws, topPadding ++ ss ++ bottomPadding) where
             topPadding          = replicate (head ws - firstMonthWeek) (replicate 20 ' ')
-            bottomPadding       = replicate (lastMonthWeek - last ws) (replicate 20 ' ')
+            bottomPadding       = replicate (5 - (lastMonthWeek - firstMonthWeek) + (lastMonthWeek - last ws)) (replicate 20 ' ')
             firstMonthWeek      = snd3 . toWeekDate . fromGregorian y m $ 1
             lastMonthWeek       = snd3 . toWeekDate . fromGregorian y m . gregorianMonthLength y $ m
         showWeeks (y,m,ws,ss)= (y, m, ws, map unwords ss)
         pullMonthInfo weeks = (fst4 (head weeks), snd4 (head weeks), map trd4 weeks, map frt4 weeks)
-        groupByMonth        = groupBy (\ w1 w2 -> snd4 w1 == snd4 w2)--weeksInSameMonth
+        groupByMonth        = groupBy (\ w1 w2 -> snd4 w1 == snd4 w2)
 
     daysAsMonthWeeks    = map (padWeek . padDays . showDays . pullWeekInfo) . groupByWeek where
         padWeek (y,m,w,ds)  = (y, m, w, leftPadding ++ ds ++ rightPadding) where
