@@ -45,10 +45,11 @@ frt4 (_,_,_,x) = x
 data YearOption = None | ShowCurrent | ShowYear Integer deriving (Show)
 
 data Options = Options
-    { optYear           :: YearOption   -- which year to show
-    , optColumnCount    :: Word         -- how many columns to show
-    , optSundayWeek     :: Bool         -- if weeks should start on Sunday instead of Monday
+    { optYear           :: YearOption               -- which year to show
+    , optColumnCount    :: Word                     -- how many columns to show
+    , optSundayWeek     :: Bool                     -- if weeks should start on Sunday instead of Monday
     , optDayRange       :: (Maybe Day, Maybe Day)   -- range of days to display
+    , optHelp           :: Bool                     -- display usage information
     } deriving Show
 
 defaultOptions = Options
@@ -56,6 +57,7 @@ defaultOptions = Options
     , optColumnCount    = 4
     , optSundayWeek     = False
     , optDayRange       = (Nothing, Nothing)
+    , optHelp           = False
     }
 
 optionTransforms :: [OptDescr (Options -> Options)]
@@ -65,13 +67,16 @@ optionTransforms =
         "display calendar for whole year; optionally specify the YEAR displayed"
     , Option ['c'] []
         (ReqArg (\ s opts -> opts {optColumnCount = read s :: Word}) "COLUMNS")
-        "display calendar with COLUMNS number of columns"
+        "display calendar with COLUMNS number of columns; COLUMNS must be a positive integer"
     , Option ['s'] ["sunday"]
         (NoArg (\ opts -> opts {optSundayWeek = True}))
         "display Sunday as first day of the week"
     , Option ['r'] ["range"]
         (ReqArg (\ s opts -> opts {optDayRange = parseDayRange s}) "DAY_RANGE")
         "display calendar with days in the range specified"
+    , Option ['h'] ["help"]
+        (NoArg (\ opts -> opts {optHelp = True}))
+        "display this help message"
     ]
     where
         readAsYearOption Nothing  = ShowCurrent
@@ -91,8 +96,13 @@ applyOptionTransforms transforms argv defaults =
     case getOpt Permute transforms argv of
         (o,[],[] ) -> foldl (flip id) defaults o
         (_,n,[]) -> error (concatMap (\ a -> "Unknown argument: " ++ a ++ "\n") n ++ usageInfo header transforms)
-        (_,_,errs) -> error (concat errs ++ usageInfo header transforms)
+        (_,_,errs) -> error (concat errs ++ helpMessage {-usageInfo header transforms-})
         where header = "\nUsage: hcal [OPTION...]"
+
+helpMessage :: String
+helpMessage = usageInfo header optionTransforms ++ footer where
+    header = "\nUsage: hcal [OPTION...]"
+    footer = "\nSee project home page for more information.\n"
 
 
 
@@ -204,4 +214,4 @@ main = do
             (Nothing, Just d)   -> [today..d]
             (Just d, Nothing)   -> [d..today]
             (Just d1, Just d2)  -> [d1..d2]
-    putStrLn . showCal (optColumnCount options) (optSundayWeek options) $ days
+    putStrLn (if optHelp options then helpMessage else showCal (optColumnCount options) (optSundayWeek options) days)
