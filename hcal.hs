@@ -71,9 +71,12 @@ optionTransforms =
     , Option ['c'] []
         (ReqArg (\ s opts -> opts {optColumnCount = read s :: Word}) "COLUMNS")
         "display calendar with COLUMNS number of columns; COLUMNS must be a positive integer"
+    , Option ['m'] ["monday"]
+        (NoArg (\ opts -> opts {optSundayWeek = False}))
+        "use Monday as first day of the week"
     , Option ['s'] ["sunday"]
         (NoArg (\ opts -> opts {optSundayWeek = True}))
-        "display Sunday as first day of the week"
+        "use Sunday as first day of the week"
     , Option ['h'] ["help"]
         (NoArg (\ opts -> opts {optHelp = True}))
         "display this help message"
