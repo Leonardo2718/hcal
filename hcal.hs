@@ -25,6 +25,18 @@ snd3 (_,x,_) = x
 trd3 :: (a,b,c) -> c
 trd3 (_,_,x) = x
 
+fst4 :: (a,b,c,d) -> a
+fst4 (x,_,_,_) = x
+
+snd4 :: (a,b,c,d) -> b
+snd4 (_,x,_,_) = x
+
+trd4 :: (a,b,c,d) -> c
+trd4 (_,_,x,_) = x
+
+frt4 :: (a,b,c,d) -> d
+frt4 (_,_,_,x) = x
+
 
 
 -- command line option handling --------------------------------------------------------------------
@@ -131,52 +143,54 @@ daysInSameWeek True day1 day2
         isSunday day = trd3 (toWeekDate day) == 7
         areInSameYear = yearOf day1 == yearOf day2
 
-weeksInSameMonth :: (Integer, Int, [String]) -> (Integer, Int, [String]) -> Bool
-weeksInSameMonth w1 w2 = snd3 w1 == snd3 w2
+--weeksInSameMonth :: (Integer, Int, [String]) -> (Integer, Int, [String]) -> Bool
+--weeksInSameMonth w1 w2 = snd3 w1 == snd3 w2
 
 
 showCal :: Word -> Bool -> [Day] -> String
 showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMonths . daysAsMonthWeeks where
     showAsCalendar      = intercalate "\n\n" . map (intercalate "\n" . addHeader) where
-        addHeader (y,m,ms)  = header:ms where
+        addHeader (y,ms,ws,ss)= header:ss where
             header              = leftPadding ++ year ++ rightPadding where
                 year                = show y
                 leftPadding         = replicate (paddingLength - length year `mod` 2) ' '
                 rightPadding        = replicate paddingLength ' '
-                paddingLength       = (min (read (show columns) :: Int) (length m) * 22 - 2 - length year) `div` 2  -- cast `columns` to Int
+                paddingLength       = (min (read (show columns) :: Int) (length ms) * 22 - 2 - length year) `div` 2  -- cast `columns` to Int
 
     monthsAsYears       = map (showMonths . pullYearInfo) . groupByYears where
-        padYear (y,m,ms)    = (y,m, leftPadding ++ ms ++ rightPadding) where
-            leftPadding         = replicate (head m - 1)  (replicate 8 . replicate 20 $ ' ')
-            rightPadding        = replicate (12 - last m) (replicate 8 . replicate 20 $ ' ')
-        showMonths (y,m,ms) = (y, m, map (intercalate "\n" . map (intercalate "  ") . transpose) . groupInto columns $ ms)
-        pullYearInfo months = (fst3 (months!!0), map snd3 months, map trd3 months)
-        groupByYears        = groupBy (\ (y1,_,_) (y2,_,_) -> y1 == y2)
+        padYear (y,ms,ws,ss)= (y, ms, ws, leftPadding ++ ss ++ rightPadding) where
+            leftPadding         = replicate (head ms - 1)  (replicate 8 . replicate 20 $ ' ')
+            rightPadding        = replicate (12 - last ms) (replicate 8 . replicate 20 $ ' ')
+        showMonths (y,ms,ws,ss)= (y, ms, ws, map (intercalate "\n" . map (intercalate "  ") . transpose) . groupInto columns $ ss)
+        pullYearInfo months = (fst4 (head months), map snd4 months, map trd4 months, map frt4 months)
+        groupByYears        = groupBy (\ (y1,_,_,_) (y2,_,_,_) -> y1 == y2)
 
     monthWeeksAsMonths  = map (addHeader . padMonth . showWeeks . pullMonthInfo) . groupByMonth where
-        addHeader (y,m,ws)  = (y, m, header ++ ws) where
+        addHeader (y,m,ws,ss)= (y, m, ws, header ++ ss) where
             header          = [leftPadding ++ h ++ rightPadding] ++ [dayNames]
             dayNames            = unwords (shortDayNames (if firstDaySunday then sDayNames else mDayNames))
             h                   = monthNames !! (m - 1)
             leftPadding         = replicate (10 - length h `div` 2 - length h `mod` 2) ' '
             rightPadding        = replicate (10 - length h `div` 2) ' '
-        padMonth (y,m,ws)   = (y, m, topPadding ++ ws ++ bottomPadding) where
-            topPadding          = []
-            bottomPadding       = replicate (6 - length ws) (replicate 20 ' ')
-        showWeeks (y,m,ws)  = (y, m, map unwords ws)
-        pullMonthInfo weeks = (fst3 (weeks!!0), snd3 (weeks!!0), map trd3 weeks)
-        groupByMonth        = groupBy weeksInSameMonth
+        padMonth (y,m,ws,ss)= (y, m, ws, topPadding ++ ss ++ bottomPadding) where
+            topPadding          = replicate (head ws - firstMonthWeek) (replicate 20 ' ')
+            bottomPadding       = replicate (lastMonthWeek - last ws) (replicate 20 ' ')
+            firstMonthWeek      = snd3 . toWeekDate . fromGregorian y m $ 1
+            lastMonthWeek       = snd3 . toWeekDate . fromGregorian y m . gregorianMonthLength y $ m
+        showWeeks (y,m,ws,ss)= (y, m, ws, map unwords ss)
+        pullMonthInfo weeks = (fst4 (head weeks), snd4 (head weeks), map trd4 weeks, map frt4 weeks)
+        groupByMonth        = groupBy (\ w1 w2 -> snd4 w1 == snd4 w2)--weeksInSameMonth
 
     daysAsMonthWeeks    = map (padWeek . padDays . showDays . pullWeekInfo) . groupByWeek where
-        padWeek (y,m,ds)    = (y, m, leftPadding ++ ds ++ rightPadding) where
+        padWeek (y,m,w,ds)  = (y, m, w, leftPadding ++ ds ++ rightPadding) where
             leftPadding         = replicate (dayNumber (head ds) - 1) "  "
             rightPadding        = replicate (7 - dayNumber (last ds)) "  "
             dayNumber d         = case firstDaySunday of
                                     False   -> trd3 . toWeekDate . fromGregorian y m $ (read d :: Int)
                                     True    -> (trd3 . toWeekDate . fromGregorian y m $ (read d :: Int)) `rem` 7 + 1
-        padDays (y,m,ds)    = (y, m, map (\d -> if length d == 1 then ' ':d else d) ds)
-        showDays (y,m,ds)   = (y, m, map show ds)
-        pullWeekInfo days   = (yearOf (days!!0), monthOf (days!!0), map dateOf days)
+        padDays (y,m,w,ds)  = (y, m, w, map (\d -> if length d == 1 then ' ':d else d) ds)
+        showDays (y,m,w,ds) = (y, m, w, map show ds)
+        pullWeekInfo days   = (yearOf (head days), monthOf (head days), weekOf (head days), map dateOf days)
         groupByWeek         = groupBy (\ d1 d2 -> daysInSameWeek firstDaySunday d1 d2 && daysInSameMonth d1 d2)
 
 
