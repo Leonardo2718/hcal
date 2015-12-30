@@ -1,3 +1,37 @@
+{-
+Project: hcal
+File: hcal.hs
+Author: Leonardo Banderali
+Last Modified: December 29, 2015
+
+Description:
+    hcal is a simple calendar program for the terminal. It is intended to be an
+    improvement on cal (the Unix calendar program).
+
+
+Copyright (C) 2015 Leonardo Banderali
+
+License:
+
+    Permission is hereby granted, free of charge, to any person obtaining a copy
+    of this software and associated documentation files (the "Software"), to deal
+    in the Software without restriction, including without limitation the rights
+    to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+    copies of the Software, and to permit persons to whom the Software is
+    furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+    AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+    LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+    OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+    THE SOFTWARE.
+-}
+
 import System.Environment (getArgs)
 import Data.Time.Calendar
 import Data.Time.Calendar.WeekDate
@@ -99,12 +133,11 @@ applyOptionTransforms transforms argv defaults =
     case getOpt Permute transforms argv of
         (o,[],[] ) -> foldl (flip id) defaults o
         (_,n,[]) -> error (concatMap (\ a -> "Unknown argument: " ++ a ++ "\n") n ++ usageInfo header transforms)
-        (_,_,errs) -> error (concat errs ++ helpMessage {-usageInfo header transforms-})
-        where header = "\nUsage: hcal [OPTION...]"
+        (_,_,errs) -> error (concat errs ++ helpMessage)
 
 helpMessage :: String
 helpMessage = usageInfo header optionTransforms ++ footer where
-    header = "\nUsage: hcal [OPTION...]"
+    header = "\nUsage: hcal [OPTION]"
     footer = "\nSee project home page for more information.\n"
 
 
