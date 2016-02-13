@@ -150,12 +150,36 @@ monthNames = ["January","February","March","April","May","June","July","August",
 mDayNames = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
 sDayNames = ["Sunday","Monday","Tuesday","Wednesday","Thursday","Friday","Saturday"]
 
-shortDayNames :: [String] -> [String]
-shortDayNames = map (take 2)
-
 
 
 -- main program ------------------------------------------------------------------------------------
+
+shortDayNames :: [String] -> [String]
+shortDayNames = map (take 2)
+
+data Range t = Range {startOf :: t, endOf :: t} deriving Show
+
+firstDayIn (Range d _, _) = d
+lastDayIn (Range _ d, _) = d
+
+daysToCalendar :: Bool -> [Day] -> String
+daysToCalendar firstDaySunday = showAsCalendar . showAsYears . showAsMonths . showAsWeeks . showAsDays where
+    showAsCalendar = intercalate "\n" . map snd
+
+    showAsYears = map (\y -> (Range (firstDayIn (head y)) (lastDayIn (last y)), intercalate "\n" (map snd y))) . group where
+        group = groupBy (\ (Range d1 _, _) (Range d2 _, _) -> daysInSameYear d1 d2)
+
+    showAsMonths = map (\m -> (Range (firstDayIn (head m)) (lastDayIn (last m)), intercalate "\n" (map snd m))) . group where
+        group = groupBy (\ (Range d1 _, _) (Range d2 _, _) -> daysInSameMonth d1 d2)
+
+    showAsWeeks = map (\w -> (Range (firstDayIn (head w)) (lastDayIn (last w)), unwords (map snd w))) . group where
+        group = groupBy (\ (Range d1 _, _) (Range d2 _, _) -> daysInSameWeek firstDaySunday d1 d2 && daysInSameMonth d1 d2)
+
+    showAsDays = map (\d -> (Range d d, showDay d)) . group where
+        showDay = show . dateOf
+        group = id
+
+
 
 monthWithDay :: Day -> [Day]
 monthWithDay day = [(fromGregorian y m 1)..(fromGregorian y m lastDay)] where
@@ -174,6 +198,9 @@ monthOf = snd3 . toGregorian
 
 dateOf :: Day -> Int
 dateOf = trd3 . toGregorian
+
+daysInSameYear :: Day -> Day -> Bool
+daysInSameYear day1 day2 = yearOf day1 == yearOf day2
 
 daysInSameMonth :: Day -> Day -> Bool
 daysInSameMonth day1 day2 = monthOf day1 == monthOf day2 && yearOf day1 == yearOf day2
@@ -256,4 +283,5 @@ main = do
     todayUTC <- getCurrentTime
     let today = utctDay todayUTC
     let days = genDays options today
-    putStrLn (if optHelp options then helpMessage else showCal (optColumnCount options) (optSundayWeek options) days)
+    --putStrLn (if optHelp options then helpMessage else showCal (optColumnCount options) (optSundayWeek options) days)
+    putStrLn (if optHelp options then helpMessage else daysToCalendar (optSundayWeek options) days)
