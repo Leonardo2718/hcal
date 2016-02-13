@@ -2,14 +2,14 @@
 Project: hcal
 File: hcal.hs
 Author: Leonardo Banderali
-Last Modified: December 29, 2015
+Last Modified: Febuary 12, 2016
 
 Description:
     hcal is a simple calendar program for the terminal. It is intended to be an
     improvement on cal (the Unix calendar program).
 
 
-Copyright (C) 2015 Leonardo Banderali
+Copyright (C) 2016 Leonardo Banderali
 
 License:
 
@@ -42,6 +42,7 @@ import Data.List.Split
 import System.Console.GetOpt
 import Data.Maybe ( fromMaybe )
 import Data.Word
+import Data.Function (on)
 
 
 
@@ -121,7 +122,7 @@ optionTransforms =
         parseDayRange = toRange . toTuple . splitOn ":" where
             toRange (s1,s2) = (readAsMaybeDay s1, readAsMaybeDay s2)
             toTuple xs = if length xs == 2 then (head xs, last xs) else error "Invalid Range."
-            readAsMaybeDay s = if length s == 0 then Nothing else Just (readAsDay s)
+            readAsMaybeDay s = if null s then Nothing else Just (readAsDay s)
             readAsDay s = fromGregorian year month date where
                 year = read (ds!!0) :: Integer
                 month = read (ds!!1) :: Int
@@ -132,7 +133,7 @@ applyOptionTransforms :: [OptDescr (Options -> Options)] -> [String] -> Options 
 applyOptionTransforms transforms argv defaults =
     case getOpt Permute transforms argv of
         (o,[],[] ) -> foldl (flip id) defaults o
-        (_,n,[]) -> error (concatMap (\ a -> "Unknown argument: " ++ a ++ "\n") n ++ usageInfo header transforms)
+        (_,n,[]) -> error (concatMap (\ a -> "Unknown argument: " ++ a ++ "\n") n ++ helpMessage)
         (_,_,errs) -> error (concat errs ++ helpMessage)
 
 helpMessage :: String
@@ -179,9 +180,7 @@ daysInSameMonth day1 day2 = monthOf day1 == monthOf day2 && yearOf day1 == yearO
 
 daysInSameWeek :: Bool -> Day -> Day -> Bool
 daysInSameWeek firstDaySunday day1 day2 = weekOf day1 == weekOf day2 && yearOf day1 == yearOf day2 where
-    weekOf = case firstDaySunday of
-        False -> fst . mondayStartWeek
-        True -> fst . sundayStartWeek
+    weekOf = if firstDaySunday then fst . sundayStartWeek else fst . mondayStartWeek
 
 showCal :: Word -> Bool -> [Day] -> String
 showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMonths . daysAsMonthWeeks where
@@ -199,11 +198,11 @@ showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMo
             rightPadding        = replicate (12 - last ms) (replicate 8 . replicate 20 $ ' ')
         showMonths (y,ms,ws,ss)= (y, ms, ws, map (intercalate "\n" . map (intercalate "  ") . transpose) . groupInto columns $ ss)
         pullYearInfo months = (fst4 (head months), map snd4 months, map trd4 months, map frt4 months)
-        groupByYears        = groupBy (\ m1 m2 -> fst4 m1 == fst4 m2)
+        groupByYears        = groupBy ((==) `on` fst4)
 
     monthWeeksAsMonths  = map (addHeader . padMonth . showWeeks . pullMonthInfo) . groupByMonth where
         addHeader (y,m,ws,ss)= (y, m, ws, header ++ ss) where
-            header          = [leftPadding ++ h ++ rightPadding] ++ [dayNames]
+            header          = (leftPadding ++ h ++ rightPadding) : [dayNames]
             dayNames            = unwords (shortDayNames (if firstDaySunday then sDayNames else mDayNames))
             h                   = monthNames !! (m - 1)
             leftPadding         = replicate (10 - length h `div` 2 - length h `mod` 2) ' '
@@ -215,15 +214,15 @@ showCal columns firstDaySunday = showAsCalendar . monthsAsYears . monthWeeksAsMo
             lastMonthWeek       = fst . weekOf . fromGregorian y m . gregorianMonthLength y $ m
         showWeeks (y,m,ws,ss)= (y, m, ws, map unwords ss)
         pullMonthInfo weeks = (fst4 (head weeks), snd4 (head weeks), map trd4 weeks, map frt4 weeks)
-        groupByMonth        = groupBy (\ w1 w2 -> snd4 w1 == snd4 w2)
+        groupByMonth        = groupBy ((==) `on` snd4)
 
     daysAsMonthWeeks    = map (padWeek . padDays . showDays . pullWeekInfo) . groupByWeek where
         padWeek (y,m,w,ds)  = (y, m, w, leftPadding ++ ds ++ rightPadding) where
             leftPadding         = replicate (dayNumber (head ds) - 1) "  "
             rightPadding        = replicate (7 - dayNumber (last ds)) "  "
-            dayNumber d         = case firstDaySunday of
-                                    False   -> snd . mondayStartWeek . fromGregorian y m $ (read d :: Int)
-                                    True    -> (snd . sundayStartWeek . fromGregorian y m $ (read d :: Int)) + 1
+            dayNumber d         = if firstDaySunday
+                                    then (snd . sundayStartWeek . fromGregorian y m $ (read d :: Int)) + 1
+                                    else snd . mondayStartWeek . fromGregorian y m $ (read d :: Int)
         padDays (y,m,w,ds)  = (y, m, w, map (\d -> if length d == 1 then ' ':d else d) ds)
         showDays (y,m,w,ds) = (y, m, w, map show ds)
         pullWeekInfo days   = (yearOf (head days), monthOf (head days), fst (weekOf (head days)), map dateOf days)
