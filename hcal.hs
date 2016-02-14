@@ -162,22 +162,54 @@ data Range t = Range {startOf :: t, endOf :: t} deriving Show
 firstDayIn (Range d _, _) = d
 lastDayIn (Range _ d, _) = d
 
-daysToCalendar :: Bool -> [Day] -> String
-daysToCalendar firstDaySunday = showAsCalendar . showAsYears . showAsMonths . showAsWeeks . showAsDays where
+mergeDayRanges rs = (Range (firstDayIn (head rs)) (lastDayIn (last rs)), map snd rs)
+
+centerTextIn n s = leftPadding ++ s ++ rightPadding where
+    leftPadding = replicate (halfPadding - length s `mod` 2) ' '
+    rightPadding = replicate halfPadding ' '
+    halfPadding = n `div` 2 - length s `div` 2 -- each term must be devided separately because of integer division
+
+daysToCalendar :: Word -> Bool -> [Day] -> String
+daysToCalendar columns firstDaySunday = showAsCalendar . showAsYears . showAsRows . showAsMonths . showAsWeeks . showAsDays where
     showAsCalendar = intercalate "\n" . map snd
 
-    showAsYears = map (\y -> (Range (firstDayIn (head y)) (lastDayIn (last y)), intercalate "\n" (map snd y))) . group where
+    showAsYears = map (unlink . pad . mergeDayRanges) . group where
+        unlink (r, ss) = (r, intercalate "\n" ss)
+        pad (Range d1 d2, ss) = (Range d1 d2, header ++ ss) where
+            header = [centerTextIn (length . head . lines . head $ ss) (show . yearOf $ d1)]
         group = groupBy (\ (Range d1 _, _) (Range d2 _, _) -> daysInSameYear d1 d2)
 
-    showAsMonths = map (\m -> (Range (firstDayIn (head m)) (lastDayIn (last m)), intercalate "\n" (map snd m))) . group where
+    showAsRows = map (unlink . mergeDayRanges) . group where
+        unlink (r, ss) = (r, intercalate "\n" . map (intercalate "  ") . transpose $ ss)
+        group = groupInto columns
+
+    showAsMonths = map (pad . mergeDayRanges) . group where
+        pad (Range d1 d2, ss) = (Range d1 d2, header ++ front ++ ss ++ back) where
+            header = [centerTextIn 20 (monthNames !! ((monthOf d1) - 1)), dayNames] where
+                dayNames = unwords . shortDayNames $ if firstDaySunday then sDayNames else mDayNames
+            front = replicate (firstWeek - monthStartWeek) (replicate 20 ' ') where
+                firstWeek = fst . weekOf $ d1
+                monthStartWeek = fst . weekOf . (\(y,m,d) -> fromGregorian y m 1 ) . toGregorian $ d1
+            back = replicate (monthEndWeek - lastWeek + 7 - weeksInMonth) (replicate 20 ' ') where -- need to account for varying number of weeks in months
+                lastWeek = fst . weekOf $ d2
+                monthStartWeek = fst . weekOf . (\(y,m,d) -> fromGregorian y m 1 ) . toGregorian $ d1
+                monthEndWeek = fst . weekOf . (\(y,m,d) -> fromGregorian y m (gregorianMonthLength y m)) . toGregorian $ d2
+                weeksInMonth = monthEndWeek - monthStartWeek + 1
         group = groupBy (\ (Range d1 _, _) (Range d2 _, _) -> daysInSameMonth d1 d2)
 
-    showAsWeeks = map (\w -> (Range (firstDayIn (head w)) (lastDayIn (last w)), unwords (map snd w))) . group where
+    showAsWeeks = map (unlink . pad . mergeDayRanges) . group where
+        unlink (r, ss) = (r, unwords ss)
+        pad (Range d1 d2, ss) = (Range d1 d2, front ++ ss ++ back) where
+            front = replicate (dayNumber d1 - 1) "  "
+            back = replicate (7 - dayNumber d2) "  "
+            dayNumber = (\d -> if firstDaySunday then d + 1 else d) . snd . weekOf
         group = groupBy (\ (Range d1 _, _) (Range d2 _, _) -> daysInSameWeek firstDaySunday d1 d2 && daysInSameMonth d1 d2)
 
     showAsDays = map (\d -> (Range d d, showDay d)) . group where
-        showDay = show . dateOf
+        showDay = (\d -> if length d == 1 then ' ':d else d) . show . dateOf
         group = id
+
+    weekOf = if firstDaySunday then sundayStartWeek else mondayStartWeek
 
 
 
@@ -284,4 +316,4 @@ main = do
     let today = utctDay todayUTC
     let days = genDays options today
     --putStrLn (if optHelp options then helpMessage else showCal (optColumnCount options) (optSundayWeek options) days)
-    putStrLn (if optHelp options then helpMessage else daysToCalendar (optSundayWeek options) days)
+    putStrLn (if optHelp options then helpMessage else daysToCalendar (optColumnCount options) (optSundayWeek options) days)
