@@ -58,19 +58,26 @@ weekPrefixes = unwords . map (take 2 . show) $ [Monday .. Sunday]
 
 -- main program ---------------------------------------------------------------
 
+monthAsRows :: [Day] -> [String]
+monthAsRows month =
+    let monthName = centerPad (length weekPrefixes) ' ' . show . toMonth . getMonth . (!! 0) $ month
+        showDay   = leftPad 2 ' ' . show . getDay
+        weeks     = padLists (length weekPrefixes) ' ' . map (unwords . map showDay) . groupBy (relation (==) getWeek) $ month
+    in  monthName : weekPrefixes : weeks
+
+yearAsRows :: [Day] -> [String]
+yearAsRows year =
+    let rows    = concat . map (foldr1 (zipWith (\a b -> a ++ "  " ++ b)) . map monthAsRows) . groupsOf 3 . groupBy (relation (==) getMonth) $ year
+        yearStr = centerPad (length $ rows !! 0) ' ' . show . getYear . (!! 0) $ year
+    in yearStr : rows
+
+showCalendar :: [Day] -> String
+showCalendar = myUnlines . concat . map (foldr1 (zipWith (\a b -> a ++ "  " ++ b)) . map yearAsRows) . groupsOf 2 . groupBy (relation (==) getYear)
+
 makeCalendar :: Options -> String
-makeCalendar options = let
-    asMonthRows month =
-        let monthName = centerPad (length weekPrefixes) ' ' . show . toMonth . getMonth . (!! 0) $ month
-            showDay = leftPad 2 ' ' . show . getDay
-            weeks = padLists (length weekPrefixes) ' ' . map (unwords . map showDay) . groupBy (relation (==) getWeek) $ month
-        in  monthName : weekPrefixes : weeks
-    showMonths months = myUnlines . foldr1 (zipWith (\a b -> a ++ "  " ++ b)) . map asMonthRows $  months
-    showYear days = myUnlines . map showMonths . groupsOf 3 . groupBy (relation (==) getMonth) $ days
-    showCalendar days = myUnlines . map showYear . groupBy (relation (==) getYear) $ days
-    in showCalendar . uncurry daysInRange $ dateRange options
+makeCalendar options = showCalendar . uncurry daysInRange $ dateRange options
 
 main :: IO ()
 main = do
     today <- getCurrentTime >>= return . utctDay
-    putStrLn $ makeCalendar Options{ dateRange = (withDay 1 . withMonth 1 $ today, withDay 31 . withMonth 12 $ today), today = today}
+    putStrLn $ makeCalendar Options{ dateRange = (withDay 1 . withMonth 1 $ today, withDay 31 . withMonth 12 . (\d -> withYear (getYear d + 3) d ) $ today), today = today}
