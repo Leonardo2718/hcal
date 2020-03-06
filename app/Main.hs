@@ -58,6 +58,10 @@ weekPrefixes = unwords . map (take 2 . show) $ [Monday .. Sunday]
 
 -- main program ---------------------------------------------------------------
 
+tabulate :: (Semigroup b) => b -> ([a] -> [b]) -> [[[a]]] -> [b]
+--tabulate sep f = concat . map (foldr1 (zipWith (\a b -> a <> sep <> b)) . map f)
+tabulate sep f = map (foldr1 (<>) . intersperse sep) . concat . map (transpose . map f)
+
 monthAsRows :: [Day] -> [String]
 monthAsRows month =
     let monthName = centerPad (length weekPrefixes) ' ' . show . toMonth . getMonth . (!! 0) $ month
@@ -67,12 +71,13 @@ monthAsRows month =
 
 yearAsRows :: [Day] -> [String]
 yearAsRows year =
-    let rows    = concat . map (foldr1 (zipWith (\a b -> a ++ "  " ++ b)) . map monthAsRows) . groupsOf 3 . groupBy (relation (==) getMonth) $ year
+    let rows    = tabulate "  " monthAsRows . groupsOf 3 . groupBy (relation (==) getMonth) $ year
         yearStr = centerPad (length $ rows !! 0) ' ' . show . getYear . (!! 0) $ year
     in yearStr : rows
 
+
 showCalendar :: [Day] -> String
-showCalendar = myUnlines . concat . map (foldr1 (zipWith (\a b -> a ++ "  " ++ b)) . map yearAsRows) . groupsOf 2 . groupBy (relation (==) getYear)
+showCalendar = myUnlines . tabulate "  " yearAsRows . groupsOf 2 . groupBy (relation (==) getYear)
 
 makeCalendar :: Options -> String
 makeCalendar options = showCalendar . uncurry daysInRange $ dateRange options
