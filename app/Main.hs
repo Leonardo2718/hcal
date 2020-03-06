@@ -15,7 +15,7 @@ data Options = Options { dateRange :: DateRange
 
 fst3 (x,_,_) = x
 snd3 (_,y,_) = y
-thr3 (_,_,z) = z
+thd3 (_,_,z) = z
 
 groupsOf _ [] = []
 groupsOf n ls = take n ls : groupsOf n (drop n ls)
@@ -28,7 +28,7 @@ myUnlines = intercalate "\n"
 
 getYear  = fst3 . toGregorian
 getMonth = snd3 . toGregorian
-getDay   = thr3 . toGregorian
+getDay   = thd3 . toGregorian
 getWeek  = snd3 . toWeekDate
 
 withYear y date  = fromGregorian y (getMonth date) (getDay date)
