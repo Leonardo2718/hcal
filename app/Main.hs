@@ -37,16 +37,16 @@ withDay d date   = fromGregorian (getYear date) (getMonth date) d
 
 daysInRange a b = [a..b]
 
-leftPad n e ls = (replicate (n - length ls) e) ++ ls
-rightPad n e ls = ls ++ (replicate (n - length ls) e)
+prePad n e ls = (replicate (n - length ls) e) ++ ls
+postPad n e ls = ls ++ (replicate (n - length ls) e)
 centerPad n e ls =
     let padding = n - length ls
         lpad = padding `div` 2
         rpad = lpad + padding `rem` 2
     in (replicate lpad e) ++ ls ++ (replicate rpad e)
-padLists n e lss = leftPad n e (head lss) : padLast (tail lss)
+padLists n e lss = prePad n e (head lss) : padLast (tail lss)
     where padLast [] = []
-          padLast [ls] = [rightPad n e ls]
+          padLast [ls] = [postPad n e ls]
           padLast (ls:lss') = ls : padLast lss'
 
 data Month = January | Febuary | March | April | May | June | July | August | September | October | November | December deriving (Eq, Show, Enum)
@@ -65,9 +65,9 @@ tabulate sep f = map (foldr1 (<>) . intersperse sep) . concat . map (transpose .
 monthAsRows :: [Day] -> [String]
 monthAsRows month =
     let monthName = centerPad (length weekPrefixes) ' ' . show . toMonth . getMonth . (!! 0) $ month
-        showDay   = leftPad 2 ' ' . show . getDay
+        showDay   = prePad 2 ' ' . show . getDay
         weeks     = padLists (length weekPrefixes) ' ' . map (unwords . map showDay) . groupBy (relation (==) getWeek) $ month
-    in  monthName : weekPrefixes : weeks
+    in  monthName : weekPrefixes : postPad 6 (replicate (length weekPrefixes) ' ') weeks
 
 yearAsRows :: [Day] -> [String]
 yearAsRows year =
@@ -77,7 +77,7 @@ yearAsRows year =
 
 
 showCalendar :: [Day] -> String
-showCalendar = myUnlines . tabulate "  " yearAsRows . groupsOf 2 . groupBy (relation (==) getYear)
+showCalendar = myUnlines . tabulate "   " yearAsRows . groupsOf 2 . groupBy (relation (==) getYear)
 
 makeCalendar :: Options -> String
 makeCalendar options = showCalendar . uncurry daysInRange $ dateRange options
