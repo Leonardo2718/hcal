@@ -5,13 +5,9 @@ import Data.Time.Calendar
 import Data.Time.Calendar.WeekDate
 import Data.Time.Clock
 
-type DateRange = (Day, Day)
-
-data Options = Options { dateRange :: DateRange
-                       , today :: Day
-                       }
-
 -- utility functions ----------------------------------------------------------
+
+type DateRange = (Day, Day)
 
 fst3 (x,_,_) = x
 snd3 (_,y,_) = y
@@ -56,28 +52,45 @@ toMonth = toEnum . (\x -> x - 1)
 weekPrefixes :: String
 weekPrefixes = unwords . map (take 2 . show) $ [Monday .. Sunday]
 
+-------------------------------------------------------------------------------
+
+longestRowLength = maximum . map length
+
+rowFor :: a -> [[a]] -> [a]
+rowFor e lss = replicate (longestRowLength lss) e
+
+tabulate :: (Semigroup a) => a -> [[[a]]] -> [a]
+tabulate sep = map (foldl1 (<>) . intersperse sep) . concatMap transpose
+
+tabulateMap :: (Semigroup b) => b -> ([a] -> [b]) -> [[[a]]] -> [b]
+--tabulateMap sep f = concatMap (foldr1 (zipWith (\a b -> a <> sep <> b)) . map f)
+tabulateMap sep f = map (foldr1 (<>) . intersperse sep) . concatMap (transpose . map f)
+
+asTableRows :: (Eq s) => Int -> String -> (a -> s) -> ([a] -> [String]) -> [a] -> [String]
+asTableRows cols sep selector f = tabulateMap sep f . groupsOf cols . groupBy (relation (==) selector)
+
 -- main program ---------------------------------------------------------------
 
-tabulate :: (Semigroup b) => b -> ([a] -> [b]) -> [[[a]]] -> [b]
---tabulate sep f = concat . map (foldr1 (zipWith (\a b -> a <> sep <> b)) . map f)
-tabulate sep f = map (foldr1 (<>) . intersperse sep) . concat . map (transpose . map f)
+data Options = Options { dateRange :: DateRange
+                       , today :: Day
+                       }
 
 monthAsRows :: [Day] -> [String]
 monthAsRows month =
     let monthName = centerPad (length weekPrefixes) ' ' . show . toMonth . getMonth . (!! 0) $ month
         showDay   = prePad 2 ' ' . show . getDay
         weeks     = padLists (length weekPrefixes) ' ' . map (unwords . map showDay) . groupBy (relation (==) getWeek) $ month
-    in  monthName : weekPrefixes : postPad 6 (replicate (length weekPrefixes) ' ') weeks
+    in  monthName : weekPrefixes : postPad 6 (rowFor ' ' weeks) weeks
 
 yearAsRows :: [Day] -> [String]
 yearAsRows year =
-    let rows    = tabulate "  " monthAsRows . groupsOf 3 . groupBy (relation (==) getMonth) $ year
-        yearStr = centerPad (length $ rows !! 0) ' ' . show . getYear . (!! 0) $ year
+    let rows    = asTableRows 3 "  " getMonth monthAsRows year
+        yearStr = centerPad (longestRowLength rows) ' ' . show . getYear . (!! 0) $ year
     in yearStr : rows
 
 
 showCalendar :: [Day] -> String
-showCalendar = myUnlines . tabulate "   " yearAsRows . groupsOf 2 . groupBy (relation (==) getYear)
+showCalendar = myUnlines . asTableRows 2 "   " getYear yearAsRows
 
 makeCalendar :: Options -> String
 makeCalendar options = showCalendar . uncurry daysInRange $ dateRange options
